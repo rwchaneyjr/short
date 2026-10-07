@@ -1,0 +1,9 @@
+PASS: two consecutive runs, exact stop position, expected final scale, restart reset.
+Final duration: 8.00s
+Errors: none
+Run 0 Establish at 0.15s
+Run 0 Walk at 3.16s
+Run 0 Complete at 8.00s
+Run 1 Establish at 0.15s
+Run 1 Walk at 3.15s
+Run 1 Complete at 8.00s
