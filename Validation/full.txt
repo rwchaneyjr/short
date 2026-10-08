@@ -1,0 +1,21 @@
+PASS: two consecutive runs, exact stop position, expected final scale, restart reset.
+Final duration: 27.29s
+Errors: none
+Run 0 Establish at 0.15s
+Run 0 Walk at 3.16s
+Run 0 Look at 8.16s
+Run 0 Grow at 9.17s
+Run 0 React at 9.97s
+Run 0 Turn at 10.37s
+Run 0 Chase at 11.18s
+Run 0 Hold at 24.95s
+Run 0 Complete at 27.30s
+Run 1 Establish at 0.15s
+Run 1 Walk at 3.16s
+Run 1 Look at 8.16s
+Run 1 Grow at 9.16s
+Run 1 React at 9.97s
+Run 1 Turn at 10.37s
+Run 1 Chase at 11.17s
+Run 1 Hold at 24.94s
+Run 1 Complete at 27.29s

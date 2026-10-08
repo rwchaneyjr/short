@@ -10,6 +10,75 @@ using GiantBugShort;
 public static class GiantBugSceneBuilder
 {
     public const string ScenePath = "Assets/Scenes/GiantBugShort.unity";
+    [MenuItem("Giant Bug Short/3 - Set Up Full Short")]
+    public static void FullSetup()
+    {
+        Wire();
+        var director=Object.FindObjectOfType<ShortDirector>();
+        director.milestone=ShortMilestone.FullSequence;
+        var camera=Camera.main;
+        var rig=camera.GetComponent<PortraitCamera>();
+        if(!rig) rig=camera.gameObject.AddComponent<PortraitCamera>();
+        rig.director=director;
+        director.growthSound=Sound(director.transform,"Growth Boom",0,false,.5f);
+        director.reactionSound=Sound(director.transform,"Reaction Sting",1,false,.3f);
+        director.chaseSound=Sound(director.transform,"Chase Pulse",2,true,.18f);
+        // Keep hand-added transitions available, but mute unconditional transitions
+        // that would fight ShortDirector's explicit phase changes.
+        foreach(var animator in new[]{director.characterAnimator,director.bugAnimator})
+        {
+            var controller=animator.runtimeAnimatorController as AnimatorController;
+            if(!controller) continue;
+            foreach(var layer in controller.layers)
+            {
+                foreach(var child in layer.stateMachine.states)
+                    foreach(var transition in child.state.transitions)
+                        if(transition.conditions.Length==0) transition.mute=true;
+                foreach(var transition in layer.stateMachine.anyStateTransitions)
+                    if(transition.conditions.Length==0) transition.mute=true;
+            }
+            EditorUtility.SetDirty(controller);
+        }
+        rig.Snap();
+        AssetDatabase.SaveAssets();
+        EditorSceneManager.MarkSceneDirty(SceneManager.GetActiveScene());
+        EditorSceneManager.SaveScene(SceneManager.GetActiveScene());
+        Selection.activeGameObject=director.gameObject;
+        File.WriteAllText("Temp/ShortWorkbench.report","Full short wired: reaction, chase, portrait camera, and editable synthesized sound cues.");
+    }
+    static AudioSource Sound(Transform parent,string name,int kind,bool loop,float volume)
+    {
+        string path="Assets/GiantBugShort/"+name+".wav";
+        if(!File.Exists(path))
+        {
+            int rate=22050, count=rate*(kind==2?2:1);
+            using(var writer=new BinaryWriter(File.Create(path)))
+            {
+                writer.Write(System.Text.Encoding.ASCII.GetBytes("RIFF")); writer.Write(36+count*2);
+                writer.Write(System.Text.Encoding.ASCII.GetBytes("WAVEfmt ")); writer.Write(16);
+                writer.Write((short)1); writer.Write((short)1); writer.Write(rate); writer.Write(rate*2);
+                writer.Write((short)2); writer.Write((short)16);
+                writer.Write(System.Text.Encoding.ASCII.GetBytes("data")); writer.Write(count*2);
+                var random=new System.Random(19);
+                for(int i=0;i<count;i++)
+                {
+                    float t=(float)i/rate;
+                    float sample;
+                    if(kind==0) sample=(Mathf.Sin(2*Mathf.PI*(90*t-25*t*t))*.65f+(float)(random.NextDouble()*2-1)*.22f)*Mathf.Exp(-5*t)*Mathf.Min(1,t*70);
+                    else if(kind==1) sample=Mathf.Sin(2*Mathf.PI*(440*t+180*t*t))*.55f*Mathf.Sin(Mathf.PI*Mathf.Clamp01(t/.45f));
+                    else { float beat=t%.25f; sample=Mathf.Sin(2*Mathf.PI*130*beat)*Mathf.Exp(-35*beat)*.6f*Mathf.Min(1,beat*300); }
+                    writer.Write((short)(Mathf.Clamp(sample,-1,1)*32767));
+                }
+            }
+            AssetDatabase.ImportAsset(path);
+        }
+        var child=parent.Find(name);
+        if(!child) { child=new GameObject(name).transform; child.SetParent(parent,false); }
+        var source=child.GetComponent<AudioSource>(); if(!source) source=child.gameObject.AddComponent<AudioSource>();
+        source.clip=AssetDatabase.LoadAssetAtPath<AudioClip>(path); source.playOnAwake=false;
+        source.loop=loop; source.volume=volume; source.spatialBlend=0;
+        return source;
+    }
     [MenuItem("Giant Bug Short/2 - Wire Sequence")]
     public static void Wire()
     {
@@ -31,8 +100,9 @@ public static class GiantBugSceneBuilder
     }
     static Animator SetupAnimator(GameObject visual,string asset)
     {
-        string path="Assets/GiantBugShort/"+asset+".controller";
+        string path="Assets/Characters/"+asset+".controller";
         var controller=AssetDatabase.LoadAssetAtPath<AnimatorController>(path);
+        if(!controller) controller=AssetDatabase.LoadAssetAtPath<AnimatorController>("Assets/GiantBugShort/"+asset+".controller");
         if(!controller)
         {
             var source=AssetDatabase.LoadAllAssetsAtPath("Assets/Characters/"+asset+".fbx").OfType<AnimationClip>().First(c=>!c.name.StartsWith("__preview__"));

@@ -26,6 +26,21 @@ public static class ShortWorkbench
             else if (command == "capture") Capture("scene");
             else if (command == "normalize") GiantBugSceneBuilder.NormalizeModels();
             else if (command == "wire") GiantBugSceneBuilder.Wire();
+            else if (command == "full") GiantBugSceneBuilder.FullSetup();
+            else if (command == "refresh") AssetDatabase.Refresh();
+            else if (command == "audit-rigs") MeshyAnimationSetup.Audit();
+            else if (command == "connect-meshy") MeshyAnimationSetup.Connect();
+            else if (command == "animations")
+            {
+                var sb=new StringBuilder();
+                foreach(var guid in AssetDatabase.FindAssets("t:AnimationClip",new[]{"Assets"}))
+                {
+                    string path=AssetDatabase.GUIDToAssetPath(guid);
+                    foreach(var clip in AssetDatabase.LoadAllAssetsAtPath(path).OfType<AnimationClip>().Where(c=>!c.name.StartsWith("__preview__")))
+                        sb.AppendLine(path+" | "+clip.name+" | "+clip.length.ToString("F2")+"s | human="+clip.isHumanMotion);
+                }
+                File.WriteAllText(Report,sb.ToString());
+            }
             else if (command == "scripts")
             {
                 Selection.activeObject=AssetDatabase.LoadAssetAtPath<UnityEngine.Object>("Assets/GiantBugShort/ShortDirector.cs");
@@ -50,6 +65,7 @@ public static class ShortWorkbench
         SessionState.SetString("ShortTestMode",mode);
         SessionState.SetString("ShortTestErrors",""); SessionState.SetString("ShortTestTrace","");
         SessionState.SetString("ShortTestPhase",""); SessionState.SetInt("ShortTestRuns",0);
+        SessionState.SetBool("ShortLateCaptured",false);
         SessionState.SetBool("ShortTest",true);
         SessionState.SetFloat("ShortTestStart",(float)EditorApplication.timeSinceStartup);
         EditorApplication.isPlaying=true;
@@ -63,6 +79,13 @@ public static class ShortWorkbench
         var d=UnityEngine.Object.FindObjectOfType<ShortDirector>(); if(!d || d.Phase==ShortPhase.Ready) return;
         string key=d.Phase.ToString();
         int run=SessionState.GetInt("ShortTestRuns",0);
+        if(d.Phase==ShortPhase.Chase)
+        {
+            if(Vector3.Distance(d.character.position,d.bug.position)<d.minimumSeparation-.01f)
+            { FinishTest("FAIL: chase separation violated"); return; }
+            if(run==0 && d.PhaseTime>10 && !SessionState.GetBool("ShortLateCaptured",false))
+            { Capture("full-LateChase"); SessionState.SetBool("ShortLateCaptured",true); }
+        }
         if(key!=SessionState.GetString("ShortTestPhase","") && (d.PhaseTime>.15f || d.Phase==ShortPhase.Complete))
         {
             SessionState.SetString("ShortTestPhase",key);
@@ -99,12 +122,14 @@ public static class ShortWorkbench
         Directory.CreateDirectory("Temp/ShortCaptures");
         var camera = Camera.main;
         var previous = camera.targetTexture;
+        var rect = camera.rect;
         var active = RenderTexture.active;
         var rt = new RenderTexture(540, 960, 24);
         var texture = new Texture2D(540, 960, TextureFormat.RGB24, false);
         try
         {
             camera.targetTexture = rt;
+            camera.rect = new Rect(0,0,1,1);
             camera.Render();
             RenderTexture.active = rt;
             texture.ReadPixels(new Rect(0, 0, 540, 960), 0, 0);
@@ -114,6 +139,7 @@ public static class ShortWorkbench
         finally
         {
             camera.targetTexture = previous;
+            camera.rect = rect;
             RenderTexture.active = active;
             UnityEngine.Object.DestroyImmediate(texture);
             rt.Release();
